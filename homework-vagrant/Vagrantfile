@@ -1,0 +1,100 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+Vagrant.configure("2") do |config|
+
+  # Every Vagrant development environment requires a box. You can search for
+  # boxes at https://vagrantcloud.com/search.
+  config.vm.box = "bento/ubuntu-20.04"
+
+  # Disable automatic box update checking. If you disable this, then
+  # boxes will only be checked for updates when the user runs
+  # `vagrant box outdated`. This is not recommended.
+  # config.vm.box_check_update = false
+
+  # Create a forwarded port mapping which allows access to a specific port
+  # within the machine from a port on the host machine. In the example below,
+  # accessing "localhost:8080" will access port 80 on the guest machine.
+  # NOTE: This will enable public access to the opened port
+  # config.vm.network "forwarded_port", guest: 80, host: 8080
+
+  # Create a forwarded port mapping which allows access to a specific port
+  # within the machine from a port on the host machine and only allow access
+  # via 127.0.0.1 to disable public access
+  # config.vm.network "forwarded_port", guest: 80, host: 8080, host_ip: "127.0.0.1"
+
+  # Create a private network
+  config.vm.network "private_network", ip: "192.168.33.10"
+
+  # Create a public network, which generally matched to bridged network.
+  # Bridged networks make the machine appear as another physical device on
+  # your network.
+  # config.vm.network "public_network"
+
+  # Share an additional folder to the guest VM. The first argument is
+  # the path on the host to the actual folder. The second argument is
+  # the path on the guest to mount the folder. And the optional third
+  # argument is a set of non-required options.
+  # config.vm.synced_folder "../data", "/vagrant_data"
+
+  # Enable share of the current code directory.
+  config.vm.synced_folder "./", "/home/vagrant/myapp"
+
+  # Provider-specific configuration 
+  config.vm.provider "vmware_fusion" do |vm|
+    vm.memory = "4096"
+    vm.cpus = "2"
+  end
+  # View the documentation for the provider you are using for more
+  # information on available options.
+
+  # Enable provisioning with a shell script. 
+  config.vm.provision "shell", inline: <<-SHELL
+
+    # Install basic dependencies
+    apt-get update -y && apt-get upgrade -y
+    sudo apt-get install -y curl gnupg2 ca-certificates lsb-release software-properties-common
+
+    # Install Node.js (LTS)
+    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+
+    # Install Docker
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt-get update -y
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+
+    # Start Docker Service
+    sudo systemctl enable docker
+    sudo systemctl start docker
+
+    # Add Your User to the docker Group
+    sudo usermod -aG docker $USER
+    newgrp docker
+
+    # Kiểm tra và chạy thử Docker
+    echo "Kiểm tra Docker daemon..."
+    sudo systemctl status docker || (echo "Docker chưa chạy, khởi động lại..." && sudo systemctl start docker)
+
+    #  Install Docker Compose
+    sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+    sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+    # Install Nginx
+    sudo apt-get install -y nginx
+    sudo systemctl stop nginx
+    sudo systemctl enable nginx
+
+    # Version
+    node -v
+    docker -v
+    docker-compose -v
+    nginx -v
+
+    #  Start app
+    cd myapp
+    sudo lsof -i :80
+    docker-compose up --build
+  SHELL
+end
