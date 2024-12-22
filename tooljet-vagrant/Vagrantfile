@@ -1,0 +1,43 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  # Specify the base box (Ubuntu 20.04 in this case)
+  config.vm.box = "bento/ubuntu-20.04"
+
+  # Configure forwarded port for ToolJet
+  config.vm.network "forwarded_port", guest: 80, host: 80
+
+  # Sync the current directory to the guest machine
+  config.vm.synced_folder "./", "/home/vagrant/tooljet"
+
+  # Set VM resources
+  config.vm.provider "vmware_fusion" do |vm|
+    vm.memory = "4096"
+    vm.cpus = "2"
+  end
+
+  # Provision the VM with required dependencies and QEMU for architecture emulation
+  config.vm.provision "shell", inline: <<-SHELL
+    # Update and upgrade the system
+    sudo apt-get update -y && sudo apt-get upgrade -y
+
+    # Install Docker
+    sudo apt-get install -y curl
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+    sudo usermod -aG docker vagrant
+
+    # Install Docker Compose
+    sudo curl -L "https://github.com/docker/compose/releases/download/v2.20.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+
+    # Install QEMU and enable architecture emulation
+    sudo apt-get install -y qemu qemu-user-static binfmt-support
+    docker run --privileged --rm tonistiigi/binfmt --install all
+
+    # Start ToolJet
+    cd /home/vagrant/tooljet
+    docker-compose up -d
+  SHELL
+end
