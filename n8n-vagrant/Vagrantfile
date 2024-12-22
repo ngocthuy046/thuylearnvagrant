@@ -1,0 +1,60 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-20.04"
+
+  config.vm.network "private_network", ip: "192.168.33.10"
+
+  config.vm.synced_folder "./", "/home/vagrant/myapp"
+
+  config.vm.provider "vmware_fusion" do |vm|
+    vm.memory = "4096"
+    vm.cpus = "2"
+  end
+
+  config.vm.provision "shell", inline: <<-SHELL
+
+    # Install basic dependencies
+    apt-get update -y && apt-get upgrade -y
+    sudo apt-get install -y curl gnupg2 ca-certificates lsb-release software-properties-common
+
+    # Install Node.js (LTS)
+    curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+
+    # Install Docker
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt-get update -y
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+
+    # Start Docker Service
+    sudo systemctl enable docker
+    sudo systemctl start docker
+
+    # Add Your User to the docker Group
+    sudo usermod -aG docker $USER
+    newgrp docker
+
+    # Kiểm tra và chạy thử Docker
+    echo "Kiểm tra Docker daemon..."
+    sudo systemctl status docker || (echo "Docker chưa chạy, khởi động lại..." && sudo systemctl start docker)
+
+    #  Install Docker Compose
+    sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    sudo chmod +x /usr/local/bin/docker-compose
+    sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+
+    # Version
+    node -v
+    docker -v
+    docker-compose -v
+
+    #  Start app
+    cd /home/vagrant/myapp
+    docker-compose up --build
+    docker ps
+  SHELL
+end
